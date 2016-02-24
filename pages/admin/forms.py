@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Page CMS forms"""
 from django import forms
-from django.template.defaultfilters import slugify
 from django.utils.translation import ugettext_lazy as _
 from django.conf import settings as global_settings
 
@@ -11,6 +10,11 @@ from pages.models import Page, Content
 from pages.urlconf_registry import get_choices
 from pages.widgets import LanguageChoiceWidget
 import collections
+
+try:
+    from slugify import slugify_unicode as slugify
+except:
+    from django.template.defaultfilters import slugify
 
 error_dict = {
     'another_page_error': _('Another page with this slug already exists'),
