@@ -1,22 +1,19 @@
 # -*- coding: utf-8 -*-
 """Django page CMS unit test suite module."""
 from pages.models import Page, Content
-from pages.placeholders import PlaceholderNode, get_filename
-from pages.tests.testcase import TestCase, MockRequest
+from pages.tests.testcase import TestCase
 from pages import urlconf_registry as reg
-from pages.phttp import get_language_from_request, get_slug
+from pages.phttp import get_language_from_request
 from pages.phttp import get_request_mock, remove_slug
 from pages.utils import get_now
 from pages.views import details
 
-
-import django
-import six
 from django.http import Http404
-from django.contrib.auth.models import User
-from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.urlresolvers import reverse
-from django.core.files.uploadedfile import SimpleUploadedFile
+from django.template import Context
+from django.test.utils import override_settings
+from taggit.models import Tag
 
 import datetime
 
@@ -27,7 +24,7 @@ class UnitTestCase(TestCase):
     def test_date_ordering(self):
         """Test page date ordering feature."""
         self.set_setting("PAGE_USE_SITE_ID", False)
-        author = User.objects.all()[0]
+        author = get_user_model().objects.all()[0]
         yesterday = get_now() - datetime.timedelta(days=1)
         now = get_now()
         p1 = Page(author=author, status=Page.PUBLISHED, publication_date=now)
@@ -96,8 +93,6 @@ class UnitTestCase(TestCase):
         page.publication_end_date = yesterday
         self.assertEqual(page.calculated_status, Page.EXPIRED)
 
-
-
     def test_urlconf_registry(self):
         """Test urlconf_registry basic functions."""
         reg.register_urlconf('Documents', 'example.documents.urls',
@@ -121,26 +116,11 @@ class UnitTestCase(TestCase):
         self.assertEqual(reg.get_choices(),
             [('', 'No delegation'), ('Documents', 'Display documents')])
 
-    def test_permissions(self):
-        # TODO: re-implement
-        pass
-
-    def test_managers(self):
-        # TODO: this test seems dependant from other tests
-        self.set_setting("PAGE_USE_SITE_ID", False)
-        Page.objects.populate_pages(child=2, depth=2)
-        for p in Page.objects.all():
-            p.invalidate()
-        self.assertEqual(Page.objects.count(), 3)
-        self.assertEqual(Page.objects.published().count(), 3)
-        self.assertEqual(Page.objects.drafts().count(), 0)
-        self.assertEqual(Page.objects.expired().count(), 0)
-
     def test_get_page_ids_by_slug(self):
         """
         Test that get_page_ids_by_slug work as intented.
         """
-        page_data = {'title':'test1', 'slug':'test1'}
+        page_data = {'title': 'test1', 'slug': 'test1'}
         page1 = self.new_page(page_data)
 
         self.assertEqual(
@@ -148,7 +128,7 @@ class UnitTestCase(TestCase):
             [page1.id]
         )
 
-        page_data = {'title':'test1', 'slug':'test1'}
+        page_data = {'title': 'test1', 'slug': 'test1'}
         page2 = self.new_page(page_data)
 
         self.assertEqual(
@@ -262,7 +242,7 @@ class UnitTestCase(TestCase):
         """
         Check that PAGE_CONTENT_REVISION_DEPTH works.
         """
-        page1 = self.new_page(content={'slug':'page1'})
+        page1 = self.new_page(content={'slug': 'page1'})
         self.set_setting("PAGE_CONTENT_REVISION_DEPTH", 3)
         Content.objects.create_content_if_changed(page1, 'en-us', 'rev-test', 'rev1')
         Content.objects.create_content_if_changed(page1, 'en-us', 'rev-test', 'rev2')
@@ -277,7 +257,7 @@ class UnitTestCase(TestCase):
         """
         Check that content_dict method works.
         """
-        page1 = self.new_page(content={'slug':'page1'})
+        page1 = self.new_page(content={'slug': 'page1'})
         page1.save()
         c = Content.objects.create_content_if_changed(page1, 'en-us', 'body', 'test')
         self.assertEqual(
@@ -290,8 +270,8 @@ class UnitTestCase(TestCase):
         Check that the strict handling of URLs work as
         intended.
         """
-        page1 = self.new_page(content={'slug':'page1'})
-        page2 = self.new_page(content={'slug':'page2'})
+        page1 = self.new_page(content={'slug': 'page1'})
+        page2 = self.new_page(content={'slug': 'page2'})
         page1.save()
         page2.save()
         page2.parent = page1
@@ -327,8 +307,8 @@ class UnitTestCase(TestCase):
     def test_path_too_long(self):
         """Test that the CMS try to resolve the whole page path to find
         a suitable sub path with delegation."""
-        page1 = self.new_page(content={'slug':'page1'})
-        page2 = self.new_page(content={'slug':'page2'})
+        page1 = self.new_page(content={'slug': 'page1'})
+        page2 = self.new_page(content={'slug': 'page2'})
         from pages import urlconf_registry as reg
         reg.register_urlconf('test2', 'pages.testproj.documents.urls',
             label='test')
@@ -364,7 +344,7 @@ class UnitTestCase(TestCase):
 
     def test_page_methods(self):
         """Test that some methods run properly."""
-        page1 = self.new_page(content={'slug': 'page1', 'title':'hello'})
+        page1 = self.new_page(content={'slug': 'page1', 'title': 'hello'})
         page2 = self.new_page(content={'slug': 'page2'})
         page1.save()
         page2.save()
@@ -387,7 +367,20 @@ class UnitTestCase(TestCase):
         """Test that the page's context processor is properly activated."""
         from pages.views import details
         req = get_request_mock()
-        page1 = self.new_page(content={'slug': 'page1', 'title': 'hello'})
+        page1 = self.new_page(content={'slug': 'page1', 'title': 'hello', 'status': 'published'})
         page1.save()
         self.set_setting("PAGES_MEDIA_URL", "test_request_context")
         self.assertContains(details(req, path='/'), "test_request_context")
+
+    @override_settings(PAGE_TAGGING=True)
+    def test_get_pages_with_tag(self):
+        """Test get_pages_with_tag template tag with tag name argument and return a list of pages"""
+        page = self.new_page({'slug': 'footer-page', 'somepage': 'get-footer-slug'})
+        page2 = self.new_page({'slug': 'footer-page2', 'somepage': 'get-footer-slug'})
+        tag = Tag.objects.create(name="footer")
+        page.tags.add(tag)
+        page2.tags.add(tag)
+        pl1 = '{% load pages_tags %}{% get_pages_with_tag "footer" as pages %}' \
+              '{% for page in pages %}{{ page.slug }},{% endfor %}'
+        template = self.get_template_from_string(pl1)
+        self.assertEqual(template.render(Context({})), u'footer-page,footer-page2,')

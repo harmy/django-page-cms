@@ -1,18 +1,15 @@
 # -*- coding: utf-8 -*-
 """A collection of functions for Page CMS"""
-from pages import settings
-from pages.cache import cache
-from pages.phttp import get_request_mock
 
 from django.conf import settings as django_settings
-from django.core.management.base import CommandError
-from django.utils.translation import ugettext_lazy as _
 from django.utils import timezone
 from django.template import Context
 from django import template
 
-import re
 from datetime import datetime
+
+dummy_context = Context()
+
 
 def get_now():
     if django_settings.USE_TZ:
@@ -20,11 +17,13 @@ def get_now():
     else:
         return datetime.now()
 
+
 def get_placeholders(template_name):
     """Return a list of PlaceholderNode found in the given template.
 
     :param template_name: the name of the template file
     """
+    dummy_context.template = template.Template("")
     try:
         temp_wrapper = template.loader.get_template(template_name)
     except template.TemplateDoesNotExist:
@@ -56,9 +55,6 @@ def get_placeholders(template_name):
     return pfiltered
 
 
-dummy_context = Context()
-dummy_context.template = template.Template("")
-
 def _placeholders_recursif(nodelist, plist, blist):
     """Recursively search into a template node list for PlaceholderNode
     node."""
@@ -85,15 +81,17 @@ def _placeholders_recursif(nodelist, plist, blist):
 
         # extends node?
         if hasattr(node, 'parent_name'):
-            _placeholders_recursif(node.get_parent(dummy_context).nodelist,
-                                                        plist, blist)
+            dummy_context2 = Context()
+            dummy_context2.template = template.Template("")
+            _placeholders_recursif(node.get_parent(dummy_context2).nodelist,
+                                   plist, blist)
         # include node?
         elif hasattr(node, 'template') and hasattr(node.template, 'nodelist'):
             _placeholders_recursif(node.template.nodelist, plist, blist)
 
         # Is it a placeholder?
         if hasattr(node, 'page') and hasattr(node, 'parsed') and \
-            hasattr(node, 'as_varname') and hasattr(node, 'name'):
+                hasattr(node, 'as_varname') and hasattr(node, 'name'):
             if block:
                 node.found_in_block = block
             plist.append(node)
@@ -106,7 +104,6 @@ def _placeholders_recursif(nodelist, plist, blist):
                     _placeholders_recursif(getattr(node, key), plist, blist)
                 except:
                     pass
-
 
 
 def normalize_url(url):
@@ -130,4 +127,3 @@ def normalize_url(url):
     if len(url) > 1 and url.endswith('/'):
         url = url[0:len(url) - 1]
     return url
-

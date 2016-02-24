@@ -6,7 +6,6 @@ PROJECT_DIR = os.path.dirname(__file__)
 TEST_PROJ = 'pages.testproj'
 
 DEBUG = True
-TEMPLATE_DEBUG = DEBUG
 USE_TZ = True
 
 ADMINS = (
@@ -59,12 +58,12 @@ FIXTURE_DIRS = [os.path.join(PROJECT_DIR, 'fixtures')]
 # Make this unique, and don't share it with anybody.
 SECRET_KEY = '*xq7m@)*f2awoj!spa0(jibsrz9%c0d=e(g)v*!17y(vx0ue_3'
 
-TEMPLATE_CONTEXT_PROCESSORS = (
+_TEMPLATE_CONTEXT_PROCESSORS = (
     "django.contrib.auth.context_processors.auth",
-    "django.core.context_processors.i18n",
-    "django.core.context_processors.debug",
-    "django.core.context_processors.request",
-    "django.core.context_processors.media",
+    "django.template.context_processors.i18n",
+    "django.template.context_processors.debug",
+    "django.template.context_processors.request",
+    "django.template.context_processors.media",
     "pages.context_processors.media",
 )
 
@@ -80,7 +79,7 @@ MIDDLEWARE_CLASSES = (
 
 ROOT_URLCONF = TEST_PROJ + '.urls'
 
-TEMPLATE_DIRS = (
+_TEMPLATE_DIRS = (
     # Put strings here, like "/home/html/django_templates" or "C:/www/django/templates".
     # Always use forward slashes, even on Windows.
     # Don't forget to use absolute paths, not relative paths.
@@ -99,6 +98,7 @@ INSTALLED_APPS = (
     'rest_framework',
     'mptt',
     'pages',
+    'taggit',
     TEST_PROJ + '.documents',
     'django.contrib.staticfiles',
     # these 2 package don't create any dependecies
@@ -142,6 +142,20 @@ PAGE_LANGUAGE_MAPPING = language_mapping
 
 PAGE_DEFAULT_TEMPLATE = 'pages/examples/index.html'
 
+PAGE_API_ENABLED = True
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'APP_DIRS': True,
+        'DIRS': _TEMPLATE_DIRS,
+        'OPTIONS': {
+            'debug': DEBUG,
+            'context_processors': _TEMPLATE_CONTEXT_PROCESSORS,
+        },
+    },
+]
+
 PAGE_TEMPLATES = (
     ('pages/examples/nice.html', 'nice one'),
     ('pages/examples/cool.html', 'cool one'),
@@ -152,6 +166,8 @@ PAGE_TEMPLATES = (
 PAGE_SANITIZE_USER_INPUT = True
 
 PAGE_USE_SITE_ID = True
+
+PAGE_TAGGING = True
 
 HAYSTACK_SITECONF = 'example.search_sites'
 HAYSTACK_SEARCH_ENGINE = 'dummy'
@@ -175,4 +191,3 @@ try:
     from local_settings import *
 except ImportError:
     pass
-
